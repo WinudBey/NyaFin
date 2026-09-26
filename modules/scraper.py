@@ -80,20 +80,29 @@ class NyaaScraper:
     def search_series(self, series_name: str) -> List[Dict]:
         """
         Searches Nyaa for a specific series.
+        Searches per target group to avoid Nyaa's 75-item RSS limit hiding older episodes.
         """
         import urllib.parse
-        query = f"{series_name} {Config.TARGET_QUALITY}".strip()
-        encoded_query = urllib.parse.quote_plus(query)
-        url = f"https://nyaa.si/?page=rss&q={encoded_query}&c=1_2&f=0"
-        logger.debug(f"Searching Nyaa RSS for: {query}")
-        try:
-            feed = feedparser.parse(url)
-            if feed.bozo:
-                raise ScraperError("Failed to parse search RSS feed correctly.")
-            items = feed.get('entries', [])
-            logger.debug(f"Successfully fetched {len(items)} items for {series_name}.")
-            return items
-        except Exception as e:
-            logger.error(f"Error searching RSS for {series_name}: {e}")
-            raise ScraperError(f"Error searching RSS for {series_name}: {e}")
+        all_items = []
+        target_groups = getattr(self, '_explicit_target_groups', Config.TARGET_GROUPS)
+        
+        for group in target_groups:
+            # Clean group name (e.g. '[SubsPlease]' -> 'SubsPlease')
+            group_clean = group.strip('[]')
+            query = f"{series_name} {group_clean} {Config.TARGET_QUALITY}".strip()
+            encoded_query = urllib.parse.quote_plus(query)
+            url = f"https://nyaa.si/?page=rss&q={encoded_query}&c=1_2&f=0"
+            logger.debug(f"Searching Nyaa RSS for: {query}")
+            try:
+                feed = feedparser.parse(url)
+                if feed.bozo:
+                    logger.warning(f"Failed to parse search RSS feed correctly for {query}.")
+                    continue
+                items = feed.get('entries', [])
+                logger.debug(f"Successfully fetched {len(items)} items for {query}.")
+                all_items.extend(items)
+            except Exception as e:
+                logger.error(f"Error searching RSS for {query}: {e}")
+                
+        return all_items
 

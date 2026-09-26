@@ -46,7 +46,7 @@ class Translator:
                     
             logger.info(f"Translating {len(texts_to_translate)} lines in batches...")
             
-            chunk_size = 20
+            chunk_size = 10  # Daha küçük chunk boyutu Bing'in satırları yutma ihtimalini azaltır
             translated_texts = []
             
             for i in range(0, len(texts_to_translate), chunk_size):
@@ -65,7 +65,7 @@ class Translator:
                 logger.debug(f"Translating chunk {current_chunk}/{total_chunks}...")
                 
                 clean_chunk = [t.replace("\n", " ").replace(r"\N", " ") for t in chunk]
-                text_to_send = "\n".join(clean_chunk)
+                text_to_send = "\n\n".join(clean_chunk)  # Paragrafları ayırmak için çift satır atlama kullanıyoruz
                 
                 primary_service = Config.TRANSLATOR_PRIMARY_SERVICE
                 

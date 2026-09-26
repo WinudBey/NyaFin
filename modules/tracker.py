@@ -84,6 +84,10 @@ class Tracker:
             return group, series, episode
         return None
 
+    def _normalize_title(self, title: str) -> str:
+        """Removes all non-alphanumeric characters for robust comparison."""
+        return re.sub(r'[^a-z0-9]', '', title.lower())
+
     def find_new_episodes(self, feed_items: List[Dict]) -> List[Dict]:
         """
         Scans RSS feed items, parses them, matches with tracked series,
@@ -111,8 +115,11 @@ class Tracker:
             
             # Check if it matches any tracked series
             matched_series = None
+            parsed_normalized = self._normalize_title(parsed_series)
+            
             for ts in tracked:
-                if ts.lower() in parsed_series.lower():
+                ts_normalized = self._normalize_title(ts)
+                if ts_normalized in parsed_normalized:
                     matched_series = ts
                     break
                     
