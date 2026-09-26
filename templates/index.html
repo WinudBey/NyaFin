@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="tr" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NyaFin - Homelab Dashboard</title>
+    <!-- Bootstrap 5 CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; }
+        .card { background-color: #161b22; border: 1px solid #30363d; }
+        .card-header { background-color: #21262d; border-bottom: 1px solid #30363d; font-weight: bold; }
+        .list-group-item { background-color: #161b22; border-color: #30363d; color: #c9d1d9; }
+        #logBox { 
+            height: 400px; 
+            overflow-y: auto; 
+            background: #000; 
+            color: #0f0; 
+            font-family: 'Consolas', monospace; 
+            padding: 10px; 
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4 mb-5">
+        <h2 class="mb-4">NyaFin - Web Dashboard (Homelab)</h2>
+        
+        <div class="row">
+            <!-- Sol Sütun: Kontroller -->
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">İşlem Kontrolleri</div>
+                    <div class="card-body">
+                        <p class="text-muted small">Seri takip listenizdeki animelerin yeni bölümlerini RSS üzerinden kontrol eder ve indirir.</p>
+                        
+                        <div class="d-flex gap-2 mb-4">
+                            <button class="btn btn-primary flex-grow-1" onclick="runAuto()">Otomatik Çalıştır (RSS)</button>
+                            <button class="btn btn-danger" onclick="stopProcess()">Durdur ⏹</button>
+                        </div>
+                        
+                        <hr class="border-secondary">
+                        
+                        <p class="text-muted small mb-2">Manuel Olarak Belirli Bir Bölümü İndir:</p>
+                        <div class="input-group mb-3">
+                            <input type="text" id="manualUrl" class="form-control" placeholder="Torrent veya Magnet Linki">
+                            <button class="btn btn-secondary" onclick="runManual()">İndir & Çevir</button>
+                        </div>
+                        
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark text-light border-secondary">Birincil Çeviri:</span>
+                            <select id="serviceSelect" class="form-select bg-dark text-light border-secondary" onchange="changeService()">
+                                <option value="bing" {% if primary_service == 'bing' %}selected{% endif %}>Bing (Google Yedek)</option>
+                                <option value="google" {% if primary_service == 'google' %}selected{% endif %}>Google (Bing Yedek)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sağ Sütun: Seri Takip -->
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">Seri Takip Yönetimi</div>
+                    <div class="card-body">
+                        <div class="input-group mb-3">
+                            <input type="text" id="seriesName" class="form-control" placeholder="Örn: Mushoku Tensei">
+                            <button class="btn btn-success" onclick="addSeries()">Ekle</button>
+                        </div>
+                        <ul class="list-group" id="seriesList">
+                            <!-- JS ile doldurulacak -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Alt Sütun: Loglar -->
+        <div class="card shadow">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Canlı Terminal Logları</span>
+                <div>
+                    <button class="btn btn-sm btn-outline-light me-2" onclick="copyLogs()">Kopyala 📋</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('logBox').innerHTML=''">Temizle</button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="logBox"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scriptler -->
+    <script>
+        function runAuto() {
+            fetch('/run_auto', { method: 'POST' })
+                .then(() => appendLog("--- OTOMATİK ÇALIŞTIRMA KOMUTU GÖNDERİLDİ ---"));
+        }
+        
+        function runManual() {
+            const url = document.getElementById('manualUrl').value;
+            if(!url) return alert("Lütfen bir link girin.");
+            fetch('/run_manual', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({url: url})
+            }).then(() => appendLog("--- MANUEL İNDİRME KOMUTU GÖNDERİLDİ ---"));
+            document.getElementById('manualUrl').value = '';
+        }
+        
+        function stopProcess() {
+            fetch('/stop', { method: 'POST' })
+                .then(() => appendLog("--- DURDURMA KOMUTU GÖNDERİLDİ ---"));
+        }
+        
+        function changeService() {
+            const service = document.getElementById('serviceSelect').value;
+            fetch('/service', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({service: service})
+            }).then(() => appendLog(`--- ÇEVİRİ SERVİSİ '${service}' OLARAK DEĞİŞTİRİLDİ ---`));
+        }
+        
+        function copyLogs() {
+            const logBox = document.getElementById('logBox');
+            const text = logBox.innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                alert("Loglar panoya kopyalandı.");
+            }).catch(err => {
+                console.error("Kopyalama başarısız oldu: ", err);
+            });
+        }
+        
+        function loadSeries() {
+            fetch('/series')
+                .then(r => r.json())
+                .then(data => {
+                    const list = document.getElementById('seriesList');
+                    list.innerHTML = '';
+                    if (data.series.length === 0) {
+                        list.innerHTML = '<li class="list-group-item text-muted text-center">Henüz takip edilen seri yok.</li>';
+                        return;
+                    }
+                    data.series.forEach(s => {
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                        li.textContent = s;
+                        
+                        const btn = document.createElement('button');
+                        btn.className = 'btn btn-danger btn-sm';
+                        btn.textContent = 'Sil';
+                        btn.onclick = () => removeSeries(s);
+                        
+                        li.appendChild(btn);
+                        list.appendChild(li);
+                    });
+                });
+        }
+        
+        function addSeries() {
+            const name = document.getElementById('seriesName').value.trim();
+            if(name) {
+                fetch('/series', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: name})
+                }).then(() => {
+                    document.getElementById('seriesName').value = '';
+                    loadSeries();
+                });
+            }
+        }
+        
+        function removeSeries(name) {
+            fetch('/series', {
+                method: 'DELETE',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: name})
+            }).then(() => loadSeries());
+        }
+
+        function appendLog(msg) {
+            const box = document.getElementById('logBox');
+            const div = document.createElement('div');
+            div.textContent = msg;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function pollLogs() {
+            fetch('/logs')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.logs.length > 0) {
+                        data.logs.forEach(log => appendLog(log));
+                    }
+                }).catch(e => console.error(e));
+        }
+
+        // Logları saniyede bir çek
+        setInterval(pollLogs, 1000);
+        // Serileri başlangıçta yükle
+        loadSeries();
+    </script>
+</body>
+</html>

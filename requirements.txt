@@ -1,0 +1,11 @@
+requests
+feedparser
+qbittorrent-api
+ffmpeg-python
+pysubs2
+python-dotenv
+pytest
+customtkinter
+deep-translator
+translators
+Flask
