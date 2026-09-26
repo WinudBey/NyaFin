@@ -1,4 +1,0 @@
-2026-09-27 00:36:58,630 - modules.scraper - DEBUG - NyaaScraper initialized.
-2026-09-27 00:36:58,630 - modules.downloader - DEBUG - Connecting to qBittorrent at http://localhost:8080...
-2026-09-27 00:36:58,691 - modules.downloader - DEBUG - Successfully authenticated with qBittorrent.
-2026-09-27 00:36:58,691 - modules.translator - DEBUG - Translator initialized with Google Translate.

@@ -66,6 +66,10 @@
         /* Buton Hover Efektleri */
         .btn-hover { transition: all 0.2s ease; }
         .btn-hover:active { transform: scale(0.97); }
+        
+        .animate-spin-slow {
+            animation: spin 3s linear infinite;
+        }
     </style>
 </head>
 <body class="text-gray-200 min-h-screen flex flex-col font-sans selection:bg-indigo-500/30">
@@ -112,9 +116,13 @@
                 </p>
 
                 <div class="flex gap-3 mb-6">
-                    <button onclick="runAuto()" class="btn-hover flex-grow bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 px-4 rounded-xl flex justify-center items-center gap-2 shadow-lg shadow-indigo-900/20">
+                    <button onclick="runAuto()" class="btn-hover flex-grow bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 px-4 rounded-xl flex justify-center items-center gap-2 shadow-lg shadow-indigo-900/20" title="Sadece yeni düşen bölümleri (son 75 RSS) kontrol eder.">
                         <i data-lucide="play" class="w-4 h-4 fill-current"></i>
                         Otomatik Çalıştır
+                    </button>
+                    <button onclick="runSearch()" class="btn-hover flex-grow bg-purple-600 hover:bg-purple-500 text-white font-medium py-2.5 px-4 rounded-xl flex justify-center items-center gap-2 shadow-lg shadow-purple-900/20" title="Takip listesindeki serilerin isimlerini Nyaa'da aratarak eksik (geçmiş) bölümleri bulur.">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                        Eksikleri Ara
                     </button>
                     <button onclick="stopProcess()" class="btn-hover bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-medium py-2.5 px-4 rounded-xl flex items-center gap-2 tooltip" title="İşlemi durdur">
                         <i data-lucide="square" class="w-4 h-4 fill-current"></i>
@@ -227,6 +235,17 @@
                 </div>
             </div>
 
+            <!-- Aktif İşlemler -->
+            <div class="glass-panel rounded-2xl p-5 flex flex-col h-full max-h-[350px]">
+                <h2 class="text-lg font-semibold flex items-center gap-2 mb-4 text-white">
+                    <i data-lucide="loader" class="w-5 h-5 text-indigo-400 animate-spin-slow"></i>
+                    Canlı Durumlar
+                </h2>
+                <div class="flex-grow overflow-y-auto pr-1" id="activeTasksBox">
+                    <div class="text-center text-gray-500 text-sm py-4 border border-dashed border-gray-700 rounded-xl">Aktif işlem bulunmuyor.</div>
+                </div>
+            </div>
+
             <!-- Terminal Logları -->
             <div class="glass-panel rounded-2xl flex flex-col flex-grow min-h-[400px] border border-gray-700">
                 <div class="flex justify-between items-center bg-gray-900/60 p-3 border-b border-gray-800 rounded-t-2xl">
@@ -286,6 +305,19 @@
                     if(r.ok) {
                         showToast("Otomatik çalıştırma başlatıldı.", "success");
                         appendLog(">>> [SİSTEM] Otomatik çalıştırma komutu gönderildi.");
+                    } else {
+                        showToast("Başlatılamadı!", "error");
+                    }
+                })
+                .catch(() => showToast("Bağlantı hatası", "error"));
+        }
+
+        function runSearch() {
+            fetch('/run_search', { method: 'POST' })
+                .then(r => {
+                    if(r.ok) {
+                        showToast("Geçmiş araması başlatıldı.", "success");
+                        appendLog(">>> [SİSTEM] Eksikleri ara (Search) komutu gönderildi.");
                     } else {
                         showToast("Başlatılamadı!", "error");
                     }
@@ -550,6 +582,52 @@
                 }).catch(e => console.error("Log fetch error:", e));
         }
 
+        function cancelTask(series, ep) {
+            fetch('/cancel_task', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({series_name: series, episode_num: parseFloat(ep)})
+            }).then(r => {
+                if(r.ok) showToast(`${series} - Bölüm ${ep} iptal ediliyor...`, "info");
+            });
+        }
+
+        function pollState() {
+            fetch('/state')
+                .then(r => r.json())
+                .then(data => {
+                    const box = document.getElementById('activeTasksBox');
+                    let html = '';
+                    let hasTasks = false;
+                    for (const [series, episodes] of Object.entries(data)) {
+                        for (const [ep, status] of Object.entries(episodes)) {
+                            hasTasks = true;
+                            html += `<div class="mb-3 p-3 bg-gray-900/50 border border-gray-800 rounded-xl relative group">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm font-semibold text-gray-200 truncate pr-8">${series}</span>
+                                    <span class="text-xs font-mono text-gray-400 bg-gray-800 px-2 py-0.5 rounded">Bölüm ${ep}</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-2 h-2 rounded-full ${status.includes('Hata') ? 'bg-red-500' : (status.includes('Tamamlandı') ? 'bg-green-500' : 'bg-indigo-500 animate-pulse')}"></div>
+                                    <span class="text-xs text-gray-400">${status}</span>
+                                </div>
+                                <button onclick="cancelTask('${series}', '${ep}')" class="absolute top-2 right-2 text-gray-500 hover:text-red-400 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all focus:opacity-100 bg-gray-800 hover:bg-red-500/10" title="Bölümü İptal Et">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                </button>
+                            </div>`;
+                        }
+                    }
+                    if(!hasTasks) {
+                        html = '<div class="text-center text-gray-500 text-sm py-4 border border-dashed border-gray-700 rounded-xl">Aktif işlem bulunmuyor.</div>';
+                    }
+                    // Only update DOM if HTML actually changed
+                    if (box.innerHTML !== html) {
+                        box.innerHTML = html;
+                        lucide.createIcons();
+                    }
+                }).catch(e => console.error("State fetch error:", e));
+        }
+
         // Event listener for enter key on input fields
         document.getElementById('seriesName').addEventListener('keypress', function (e) {
             if (e.key === 'Enter') addSeries();
@@ -560,6 +638,7 @@
 
         // Logları saniyede bir çek
         setInterval(pollLogs, 1000);
+        setInterval(pollState, 1000);
         
         // Başlangıçta yüklemeler
         document.addEventListener('DOMContentLoaded', () => {

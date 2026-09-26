@@ -36,3 +36,11 @@ Nyaa.si üzerinden otomatik anime indirme, altyazı çıkarma (İngilizce), yere
 - **[2026-09-27 00:26]** - Faz 11 (Kalite Seçimi) tamamlandı. Web arayüzüne "Kalite Seçimi" (1080p, 720p, 480p, Tüm Kaliteler) açılır menüsü eklendi. Seçimler dinamik olarak RSS arama URL'sini (NYAA_RSS_URL) güncelleyerek Scraper'ın istenen çözünürlükteki videoları indirmesini sağlıyor.
 
 - **[2026-09-27 00:41]** - Faz 11 (Kalite Seçimi) tamamlandı. Web arayüzüne "Kalite Seçimi" (1080p, 720p, 480p, Tüm Kaliteler) açılır menüsü eklendi. Seçimler dinamik olarak RSS arama URL'sini (NYAA_RSS_URL) güncelleyerek Scraper'ın istenen çözünürlükteki videoları indirmesini sağlıyor.
+
+- **[2026-09-27 00:48]** - Faz 11 (Kalite Seçimi) tamamlandı. Web arayüzüne "Kalite Seçimi" (1080p, 720p, 480p, Tüm Kaliteler) açılır menüsü eklendi. Seçimler dinamik olarak RSS arama URL'sini (NYAA_RSS_URL) güncelleyerek Scraper'ın istenen çözünürlükteki videoları indirmesini sağlıyor.
+
+- **[2026-09-27 00:49]** - Faz 11 (Kalite Seçimi) tamamlandı. Web arayüzüne "Kalite Seçimi" (1080p, 720p, 480p, Tüm Kaliteler) açılır menüsü eklendi. Seçimler dinamik olarak RSS arama URL'sini (NYAA_RSS_URL) güncelleyerek Scraper'ın istenen çözünürlükteki videoları indirmesini sağlıyor.
+
+- **[2026-09-27 00:59]** - Faz 11 (Kalite Seçimi) tamamlandı. Web arayüzüne "Kalite Seçimi" (1080p, 720p, 480p, Tüm Kaliteler) açılır menüsü eklendi. Seçimler dinamik olarak RSS arama URL'sini (NYAA_RSS_URL) güncelleyerek Scraper'ın istenen çözünürlükteki videoları indirmesini sağlıyor.
+
+- **[2026-09-27 01:03]** - Eksikleri arama (Search) isleminde bolumlerin sondan basa (ornegin 1'den degil 12'den baslayarak) indirilmesi sorunu cozuldu. `tracker.py` icerisindeki eksik bolumlerin listelendigi fonksiyona bolum numarasina gore kucukten buyuge (ascending) siralama islemi eklendi.

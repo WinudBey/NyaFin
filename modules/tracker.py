@@ -122,4 +122,5 @@ class Tracker:
                     item['episode'] = episode
                     new_items.append(item)
                     
+        new_items = sorted(new_items, key=lambda x: (x['matched_series'], x['episode']))
         return new_items

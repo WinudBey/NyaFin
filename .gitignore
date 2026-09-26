@@ -1,2 +1,4 @@
 /data
 /logs
+logs/app.log
+__pycache__/

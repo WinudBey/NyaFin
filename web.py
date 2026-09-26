@@ -46,6 +46,13 @@ def run_auto():
     threading.Thread(target=pipeline.run_auto, daemon=True).start()
     return jsonify({"status": "Auto run started"})
 
+@app.route('/run_search', methods=['POST'])
+def run_search():
+    if not pipeline:
+        return jsonify({"error": "Pipeline başlatılamadı."}), 500
+    threading.Thread(target=pipeline.run_search, daemon=True).start()
+    return jsonify({"status": "Search run started"})
+
 @app.route('/run_manual', methods=['POST'])
 def run_manual():
     if not pipeline:
@@ -61,6 +68,22 @@ def stop_process():
     Config.STOP_EVENT.set()
     logger.warning("İşlem durdurma sinyali (Web üzerinden) gönderildi.")
     return jsonify({"status": "Stop signal sent"})
+
+from core.state import StateManager
+
+@app.route('/state', methods=['GET'])
+def get_state():
+    return jsonify(StateManager.get_state())
+
+@app.route('/cancel_task', methods=['POST'])
+def cancel_task():
+    series_name = request.json.get("series_name")
+    episode_num = request.json.get("episode_num")
+    if series_name and episode_num is not None:
+        StateManager.request_cancel(series_name, episode_num)
+        logger.warning(f"İptal sinyali gönderildi: {series_name} - {episode_num}")
+        return jsonify({"status": "Cancel requested"})
+    return jsonify({"error": "Missing parameters"}), 400
 
 @app.route('/service', methods=['GET', 'POST'])
 def manage_service():
