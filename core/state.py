@@ -6,11 +6,15 @@ class StateManager:
     _cancel_flags = {}
 
     @classmethod
-    def set_status(cls, series_name, episode, status):
+    def set_status(cls, series_name, episode, status, progress=0, detail=""):
         with cls._lock:
             if series_name not in cls._state:
                 cls._state[series_name] = {}
-            cls._state[series_name][episode] = status
+            cls._state[series_name][episode] = {
+                "status": status,
+                "progress": progress,
+                "detail": detail
+            }
 
     @classmethod
     def get_state(cls):

@@ -19,7 +19,7 @@ class Translator:
             logger.error(f"Failed to initialize Google Translator: {e}")
             raise TranslationError(f"Init Error: {e}")
 
-    def translate_subtitle_file(self, input_sub_path: str, output_sub_path: str):
+    def translate_subtitle_file(self, input_sub_path: str, output_sub_path: str, progress_callback=None):
         """
         Parses a subtitle file, translates dialog lines in batches, and saves to a new file.
         Preserves all timestamps and styling.
@@ -27,6 +27,7 @@ class Translator:
         Args:
             input_sub_path: Path to English .ass/.srt file.
             output_sub_path: Path to save Turkish .ass/.srt file.
+            progress_callback: Optional callback for progress (percentage, detail).
         """
         logger.debug(f"Parsing subtitle file: {input_sub_path}")
         
@@ -54,65 +55,75 @@ class Translator:
                     raise TranslationError("Cancelled by user.")
                     
                 chunk = texts_to_translate[i:i+chunk_size]
-                logger.debug(f"Translating chunk {i//chunk_size + 1}/{(len(texts_to_translate) + chunk_size - 1)//chunk_size}...")
+                current_chunk = (i // chunk_size) + 1
+                total_chunks = (len(texts_to_translate) + chunk_size - 1) // chunk_size
                 
-                success = False
-                retries = 3
+                if progress_callback:
+                    prog_val = int((current_chunk / total_chunks) * 100)
+                    progress_callback(prog_val, f"Bölüm {current_chunk}/{total_chunks} çevriliyor...")
+                    
+                logger.debug(f"Translating chunk {current_chunk}/{total_chunks}...")
                 
                 clean_chunk = [t.replace("\n", " ").replace(r"\N", " ") for t in chunk]
                 text_to_send = "\n".join(clean_chunk)
                 
                 primary_service = Config.TRANSLATOR_PRIMARY_SERVICE
                 
-                def try_bing():
-                    nonlocal success
+                # Build engine try list based on primary service
+                engines = [primary_service]
+                for fallback in ['google', 'bing', 'yandex', 'alibaba']:
+                    if fallback not in engines:
+                        engines.append(fallback)
+                        
+                success = False
+                
+                for engine in engines:
+                    if Config.STOP_EVENT.is_set():
+                        raise TranslationError("Cancelled by user.")
+                    
+                    logger.debug(f"Attempting translation with {engine}...")
+                    retries = 2
+                    
                     for attempt in range(retries):
-                        if Config.STOP_EVENT.is_set(): return False
+                        if Config.STOP_EVENT.is_set():
+                            raise TranslationError("Cancelled by user.")
                         try:
-                            res = ts.translate_text(text_to_send, translator='bing', from_language='en', to_language='tr')
+                            res = ts.translate_text(text_to_send, translator=engine, from_language='en', to_language='tr')
                             res_lines = res.split("\n")
+                            
+                            # Clean up empty lines from response
+                            res_lines = [line.strip() for line in res_lines if line.strip()]
                             
                             if len(res_lines) == len(chunk):
                                 translated_texts.extend(res_lines)
+                                success = True
+                                time.sleep(1.5)  # Pause to respect rate limits globally
+                                break
                             else:
-                                logger.warning(f"Bing chunk length mismatch! Expected {len(chunk)}, got {len(res_lines)}. Translating line by line...")
-                                for text in clean_chunk:
-                                    if Config.STOP_EVENT.is_set(): return False
-                                    single_res = ts.translate_text(text, translator='bing', from_language='en', to_language='tr')
-                                    translated_texts.append(single_res)
-                                    time.sleep(0.5)
-                            
-                            success = True
-                            time.sleep(1.0)
-                            return True
+                                logger.warning(f"[{engine}] Chunk length mismatch on attempt {attempt+1}! Expected {len(chunk)}, got {len(res_lines)}.")
+                                time.sleep(2.0)
                         except Exception as e:
-                            logger.warning(f"Bing Translate API failed on attempt {attempt + 1}: {e}")
+                            logger.warning(f"[{engine}] API failed on attempt {attempt + 1}: {e}")
                             time.sleep(2.0 * (attempt + 1))
-                    return False
-                    
-                def try_google():
-                    nonlocal success
-                    logger.info("Attempting Google Translate...")
-                    try:
-                        res = self.translator.translate_batch(chunk)
-                        translated_texts.extend(res)
-                        success = True
-                        time.sleep(2.0)
-                        return True
-                    except Exception as e:
-                        logger.error(f"Google Translate API failed: {e}")
-                        return False
-                
-                if primary_service == "bing":
-                    if not try_bing():
-                        logger.warning("Primary (Bing) failed. Falling back to Google...")
-                        if not try_google():
-                            raise TranslationError("API Error on batch: Both engines failed.")
-                else:
-                    if not try_google():
-                        logger.warning("Primary (Google) failed. Falling back to Bing...")
-                        if not try_bing():
-                            raise TranslationError("API Error on batch: Both engines failed.")
+                            
+                    if success:
+                        break
+                        
+                if not success:
+                    logger.warning("All engines failed batch translation or length mismatch. Falling back to line-by-line with Google...")
+                    # Fallback to line by line with delay
+                    for text in clean_chunk:
+                        if Config.STOP_EVENT.is_set():
+                            raise TranslationError("Cancelled by user.")
+                        try:
+                            # 1 req/sec max to avoid Google limits
+                            single_res = ts.translate_text(text, translator='google', from_language='en', to_language='tr')
+                            translated_texts.append(single_res)
+                            time.sleep(1.1)
+                        except Exception as e:
+                            logger.error(f"Line-by-line translation failed: {e}")
+                            translated_texts.append(text) # Keep original if all else fails
+                    success = True
             
             # Map translated lines back to the subtitle objects
             for idx, trans in zip(valid_indices, translated_texts):

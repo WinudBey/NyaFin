@@ -68,13 +68,14 @@ class Downloader:
             logger.error(f"Failed to add torrent: {e}")
             raise DownloadError(f"Failed to add torrent: {e}")
 
-    def wait_for_completion(self, torrent_hash: str, timeout: int = 3600) -> Optional[str]:
+    def wait_for_completion(self, torrent_hash: str, timeout: int = 3600, progress_callback: Optional[callable] = None) -> Optional[str]:
         """
         Polls the torrent status until it's 100% complete.
         
         Args:
             torrent_hash: Hash of the torrent to monitor.
             timeout: Maximum time in seconds to wait.
+            progress_callback: Optional callback function(progress_percent, state_string)
             
         Returns:
             Absolute path to the downloaded video file.
@@ -96,6 +97,20 @@ class Downloader:
                 torrent = torrents[0]
                 progress = torrent.progress * 100
                 logger.debug(f"Download Progress: {progress:.2f}%")
+                
+                if progress_callback:
+                    # Provide localized status mapping if needed, or just use torrent.state
+                    state_map = {
+                        "downloading": "İndiriliyor...",
+                        "stalledDL": "Bekliyor...",
+                        "metaDL": "Meta veri indiriliyor...",
+                        "checkingDL": "Kontrol ediliyor...",
+                        "pausedDL": "Duraklatıldı",
+                        "queuedDL": "Kuyrukta",
+                        "allocating": "Yer ayrılıyor..."
+                    }
+                    detail_str = state_map.get(torrent.state, torrent.state)
+                    progress_callback(progress, detail_str)
                 
                 if torrent.progress == 1.0 or torrent.state in ('uploading', 'stalledUP', 'pausedUP'):
                     logger.debug("Download complete.")

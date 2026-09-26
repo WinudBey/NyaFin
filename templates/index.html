@@ -600,17 +600,33 @@
                     let html = '';
                     let hasTasks = false;
                     for (const [series, episodes] of Object.entries(data)) {
-                        for (const [ep, status] of Object.entries(episodes)) {
+                        for (const [ep, taskData] of Object.entries(episodes)) {
                             hasTasks = true;
+                            const statusStr = typeof taskData === 'object' ? taskData.status : taskData;
+                            const progress = typeof taskData === 'object' ? (taskData.progress || 0) : 0;
+                            const detail = typeof taskData === 'object' ? (taskData.detail || "") : "";
+                            
+                            const isError = statusStr.includes('Hata');
+                            const isDone = statusStr.includes('Tamamlandı');
+                            const dotColor = isError ? 'bg-red-500' : (isDone ? 'bg-green-500' : 'bg-indigo-500 animate-pulse');
+                            
                             html += `<div class="mb-3 p-3 bg-gray-900/50 border border-gray-800 rounded-xl relative group">
                                 <div class="flex justify-between items-center mb-2">
                                     <span class="text-sm font-semibold text-gray-200 truncate pr-8">${series}</span>
                                     <span class="text-xs font-mono text-gray-400 bg-gray-800 px-2 py-0.5 rounded">Bölüm ${ep}</span>
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <div class="w-2 h-2 rounded-full ${status.includes('Hata') ? 'bg-red-500' : (status.includes('Tamamlandı') ? 'bg-green-500' : 'bg-indigo-500 animate-pulse')}"></div>
-                                    <span class="text-xs text-gray-400">${status}</span>
+                                <div class="flex flex-col gap-1 mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-2 h-2 rounded-full ${dotColor}"></div>
+                                        <span class="text-xs text-gray-300 font-medium">${statusStr}</span>
+                                    </div>
+                                    ${detail ? `<span class="text-[11px] text-gray-500 pl-4">${detail}</span>` : ''}
                                 </div>
+                                ${(!isError && !isDone) ? `
+                                <div class="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden flex items-center">
+                                    <div class="bg-indigo-500 h-1.5 rounded-full transition-all duration-500 ${progress === 0 ? 'opacity-50 animate-pulse' : ''}" style="width: ${progress === 0 ? 100 : progress}%"></div>
+                                </div>
+                                ` : ''}
                                 <button onclick="cancelTask('${series}', '${ep}')" class="absolute top-2 right-2 text-gray-500 hover:text-red-400 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all focus:opacity-100 bg-gray-800 hover:bg-red-500/10" title="Bölümü İptal Et">
                                     <i data-lucide="x" class="w-4 h-4"></i>
                                 </button>

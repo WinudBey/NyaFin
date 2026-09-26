@@ -132,20 +132,21 @@ class Pipeline:
 
         try:
             # Step 1: Download
-            StateManager.set_status(series_name, episode_num, "İndiriliyor")
+            StateManager.set_status(series_name, episode_num, "İndiriliyor", detail="qBittorrent'e ekleniyor...")
             logger.info("--- Step 1: Downloading ---")
             check_cancel()
             torrent_hash = self.downloader.add_torrent(torrent_url)
             
-            # TODO: We might need a check_cancel inside downloader.wait_for_completion if it takes long.
-            # For now, it might block. We will just check before and after.
-            video_path = self.downloader.wait_for_completion(torrent_hash)
+            def progress_callback(prog, detail_str):
+                StateManager.set_status(series_name, episode_num, "İndiriliyor", progress=prog, detail=detail_str)
+            
+            video_path = self.downloader.wait_for_completion(torrent_hash, progress_callback=progress_callback)
             
             if not video_path or not os.path.exists(video_path):
                 raise DownloadError("Video file not found after download.")
                 
             # Step 2: Extract Subtitles
-            StateManager.set_status(series_name, episode_num, "Altyazı Çıkarılıyor")
+            StateManager.set_status(series_name, episode_num, "Altyazı Çıkarılıyor", progress=0, detail="Dosya analiz ediliyor...")
             logger.info("--- Step 2: Extracting Subtitles ---")
             check_cancel()
             sub_index = self.media.find_english_subtitle_track(video_path)
@@ -156,28 +157,32 @@ class Pipeline:
             eng_sub_path = self.media.extract_subtitle(video_path, sub_index, output_format="ass")
             
             # Step 3: Translate Subtitles
-            StateManager.set_status(series_name, episode_num, "Çevriliyor")
+            StateManager.set_status(series_name, episode_num, "Çevriliyor", progress=0, detail="Çeviri başlıyor...")
             logger.info("--- Step 3: Translating Subtitles ---")
             check_cancel()
             tr_sub_path = os.path.join(Config.TEMP_DIR, "TR_" + os.path.basename(eng_sub_path))
-            self.translator.translate_subtitle_file(eng_sub_path, tr_sub_path)
+            
+            def trans_progress_callback(prog, detail_str):
+                StateManager.set_status(series_name, episode_num, "Çevriliyor", progress=prog, detail=detail_str)
+                
+            self.translator.translate_subtitle_file(eng_sub_path, tr_sub_path, progress_callback=trans_progress_callback)
             
             # Step 4: Mux Video
-            StateManager.set_status(series_name, episode_num, "Birleştiriliyor (Mux)")
+            StateManager.set_status(series_name, episode_num, "Birleştiriliyor (Mux)", progress=0, detail="Video ve yeni altyazı birleştiriliyor...")
             logger.info("--- Step 4: Muxing Final Video ---")
             check_cancel()
             final_video_path = self.media.mux_video(video_path, tr_sub_path)
             
             # Step 5: Cleanup
-            StateManager.set_status(series_name, episode_num, "Temizleniyor")
+            StateManager.set_status(series_name, episode_num, "Temizleniyor", progress=0, detail="Geçici dosyalar siliniyor...")
             logger.info("--- Step 5: Cleanup ---")
             self._cleanup(eng_sub_path, tr_sub_path)
             
-            StateManager.set_status(series_name, episode_num, "Tamamlandı")
+            StateManager.set_status(series_name, episode_num, "Tamamlandı", progress=100, detail="İşlem başarıyla bitti.")
             logger.info(f"Pipeline completed successfully! Final video: {final_video_path}")
             
         except Exception as e:
-            StateManager.set_status(series_name, episode_num, f"Hata: {str(e)}")
+            StateManager.set_status(series_name, episode_num, f"Hata: {str(e)}", progress=0, detail="İşlem başarısız oldu.")
             raise
         finally:
             # We can remove the task after a while, or keep it as completed/error

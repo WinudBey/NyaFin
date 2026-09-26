@@ -44,3 +44,9 @@ Nyaa.si üzerinden otomatik anime indirme, altyazı çıkarma (İngilizce), yere
 - **[2026-09-27 00:59]** - Faz 11 (Kalite Seçimi) tamamlandı. Web arayüzüne "Kalite Seçimi" (1080p, 720p, 480p, Tüm Kaliteler) açılır menüsü eklendi. Seçimler dinamik olarak RSS arama URL'sini (NYAA_RSS_URL) güncelleyerek Scraper'ın istenen çözünürlükteki videoları indirmesini sağlıyor.
 
 - **[2026-09-27 01:03]** - Eksikleri arama (Search) isleminde bolumlerin sondan basa (ornegin 1'den degil 12'den baslayarak) indirilmesi sorunu cozuldu. `tracker.py` icerisindeki eksik bolumlerin listelendigi fonksiyona bolum numarasina gore kucukten buyuge (ascending) siralama islemi eklendi.
+
+- **[2026-09-27 01:09]** - Faz 12: Aktif İndirme ve İşlem Durumlarına İlerleme Çubuğu (Progress Bar) eklendi. qBittorrent indirme süreçleri ve diğer sistem adımları için detaylı durum (detail) ve yüzdelik ilerleme (progress) göstergesi web arayüzüne (index.html) entegre edildi.
+
+- **[2026-09-27 01:14]** - Faz 13: Çeviri Motoru (Translator) Hata Toleransı İyileştirilmesi. Google Translate ve Bing üzerindeki rate limit (Too many requests) hatalarını çözmek amacıyla, deep_translator batch metodu yerine translators kütüphanesi toplu chunk (blok) çevirisi yapacak şekilde güncellendi. Yandex ve Alibaba gibi yeni fallback motorları eklendi ve line-by-line yedeklemesine oran limitine takılmamak için delay eklendi.
+
+- **[2026-09-27 01:19]** - Faz 14: İlerleme Çubuğu (Progress Bar) Mantığı İyileştirildi. Çeviri adımı için dinamik yüzdelik ilerleme desteği eklendi. Çıkarma, Mux ve Temizlik gibi yüzdesi olmayan işlemler için barın 100% de takılı kalması yerine, %0 (belirsiz) gönderilerek animasyonlu kayan çubuk görünümüne geçilmesi sağlandı.
