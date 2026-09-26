@@ -15,7 +15,8 @@ class Config:
     OUTPUT_DIR = os.path.join(DATA_DIR, "output")
     
     # RSS Configuration
-    NYAA_RSS_URL = os.getenv("NYAA_RSS_URL", "https://nyaa.si/?page=rss&q=1080p&c=1_2&f=0")
+    TARGET_QUALITY = os.getenv("TARGET_QUALITY", "1080p")
+    NYAA_RSS_URL = os.getenv("NYAA_RSS_URL", "https://nyaa.si/?page=rss&q={quality}&c=1_2&f=0")
     TARGET_GROUPS = os.getenv("TARGET_GROUPS", "[SubsPlease],[Erai-raws]").split(",")
     
     # qBittorrent Configuration

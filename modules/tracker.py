@@ -41,6 +41,12 @@ class Tracker:
             self._save_db()
             logger.info(f"Removed series from tracker: {series_name}")
 
+    def reset_db(self):
+        """Clears the series database entirely."""
+        self.db = {"tracked_series": {}}
+        self._save_db()
+        logger.info("Series database has been reset.")
+
     def get_tracked_series(self) -> List[str]:
         return list(self.db["tracked_series"].keys())
 

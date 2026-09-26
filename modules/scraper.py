@@ -9,11 +9,15 @@ logger = get_logger(__name__)
 class NyaaScraper:
     """Handles fetching and filtering releases from Nyaa.si RSS feed."""
     
-    def __init__(self, rss_url: str = Config.NYAA_RSS_URL, target_groups: List[str] = Config.TARGET_GROUPS):
-        self.rss_url = rss_url
-        self.target_groups = target_groups
-        logger.debug(f"NyaaScraper initialized with URL: {self.rss_url}")
-        logger.debug(f"Target groups: {self.target_groups}")
+    def __init__(self, target_groups: List[str] = None):
+        if target_groups is not None:
+            self._explicit_target_groups = target_groups
+        logger.debug("NyaaScraper initialized.")
+
+    @property
+    def rss_url(self) -> str:
+        # Dynamically build the URL based on current TARGET_QUALITY
+        return Config.NYAA_RSS_URL.format(quality=Config.TARGET_QUALITY)
 
     def fetch_latest(self) -> List[Dict]:
         """
@@ -48,12 +52,15 @@ class NyaaScraper:
         """
         logger.debug("Filtering RSS items...")
         filtered = []
+        # Fallback to init args if explicitly passed, otherwise use dynamic config
+        target_groups = getattr(self, '_explicit_target_groups', Config.TARGET_GROUPS)
+        
         for item in items:
             title = item.get('title', '')
             link = item.get('link', '') # This is the torrent file link
             
             # Check if any target group is in the title
-            if any(group.lower() in title.lower() for group in self.target_groups):
+            if any(group.lower() in title.lower() for group in target_groups):
                 filtered.append({
                     'title': title,
                     'torrent_url': link,
