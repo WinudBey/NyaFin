@@ -78,6 +78,17 @@ class Translator:
                         res_lines = [line.strip() for line in res.split("\n") if line.strip()]
                         
                         if len(res_lines) == len(chunk_text_list):
+                            # Detect if API silently failed and echoed English back (common with ASS tags)
+                            is_echo = True
+                            for orig, translated in zip(clean_chunk, res_lines):
+                                if orig.strip() != translated.strip():
+                                    is_echo = False
+                                    break
+                                    
+                            if is_echo:
+                                logger.debug(f"[{engine}] Echoed original text in chunk {chunk_idx}. Treating as failure.")
+                                continue
+                                
                             time.sleep(0.3) # Tiny delay to prevent spamming
                             return res_lines
                         else:
