@@ -45,9 +45,13 @@ class Translator:
                     valid_indices.append(i)
                     texts_to_translate.append(line.text)
                     
-            if Config.DEEPL_API_KEY:
-                logger.info("DeepL API Key found! Routing via Official DeepL API.")
-                return self._translate_with_deepl(subs, valid_indices, texts_to_translate, output_sub_path, progress_callback)
+            if Config.TRANSLATOR_PRIMARY_SERVICE == "deepl":
+                if Config.DEEPL_API_KEY:
+                    logger.info("DeepL API Key found! Routing via Official DeepL API.")
+                    return self._translate_with_deepl(subs, valid_indices, texts_to_translate, output_sub_path, progress_callback)
+                else:
+                    logger.warning("DeepL seçildi ama API anahtarı (.env) bulunamadı! Yedek olarak Bing'e düşülüyor.")
+                    Config.TRANSLATOR_PRIMARY_SERVICE = "bing"
                     
             logger.info(f"Translating {len(texts_to_translate)} lines concurrently in batches...")
             

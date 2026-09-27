@@ -89,7 +89,7 @@ def cancel_task():
 def manage_service():
     if request.method == 'POST':
         service = request.json.get("service")
-        if service in ["bing", "google"]:
+        if service in ["bing", "google", "deepl"]:
             Config.TRANSLATOR_PRIMARY_SERVICE = service
             logger.info(f"Çeviri servisi (Web üzerinden) '{service}' olarak değiştirildi.")
             return jsonify({"status": "ok", "service": service})

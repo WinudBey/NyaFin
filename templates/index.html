@@ -160,6 +160,7 @@
                     <select id="serviceSelect" onchange="changeService()" class="w-full bg-gray-900/80 border border-gray-700 text-gray-200 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 appearance-none">
                         <option value="bing" {% if primary_service == 'bing' %}selected{% endif %}>Bing (Yedek: Google)</option>
                         <option value="google" {% if primary_service == 'google' %}selected{% endif %}>Google (Yedek: Bing)</option>
+                        <option value="deepl" {% if primary_service == 'deepl' %}selected{% endif %}>DeepL (Resmi API)</option>
                     </select>
                     <div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
                         <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400"></i>
