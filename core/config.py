@@ -29,6 +29,7 @@ class Config:
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
     
     # Translation & Execution Control
+    DEEPL_API_KEY = os.getenv("DEEPL_API_KEY", "")
     TRANSLATOR_PRIMARY_SERVICE = os.getenv("TRANSLATOR_PRIMARY_SERVICE", "bing")
     STOP_EVENT = threading.Event()
     

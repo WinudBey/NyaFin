@@ -45,6 +45,10 @@ class Translator:
                     valid_indices.append(i)
                     texts_to_translate.append(line.text)
                     
+            if Config.DEEPL_API_KEY:
+                logger.info("DeepL API Key found! Routing via Official DeepL API.")
+                return self._translate_with_deepl(subs, valid_indices, texts_to_translate, output_sub_path, progress_callback)
+                    
             logger.info(f"Translating {len(texts_to_translate)} lines concurrently in batches...")
             
             chunk_size = 10
@@ -155,3 +159,63 @@ class Translator:
         except Exception as e:
             logger.error(f"Error processing subtitle file: {e}")
             raise TranslationError(f"Failed to process subtitle file: {e}")
+
+    def _translate_with_deepl(self, subs, valid_indices, texts_to_translate, output_sub_path, progress_callback):
+        import requests
+        
+        logger.info(f"Translating {len(texts_to_translate)} lines via DeepL API...")
+        
+        url = "https://api-free.deepl.com/v2/translate" if ":fx" in Config.DEEPL_API_KEY else "https://api.deepl.com/v2/translate"
+        headers = {
+            "Authorization": f"DeepL-Auth-Key {Config.DEEPL_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        chunk_size = 50 
+        chunks = [texts_to_translate[i:i+chunk_size] for i in range(0, len(texts_to_translate), chunk_size)]
+        translated_texts = []
+        
+        completed = 0
+        for chunk in chunks:
+            if Config.STOP_EVENT.is_set():
+                raise TranslationError("Cancelled by user.")
+                
+            clean_chunk = [t.replace("\n", " ").replace(r"\N", " ") for t in chunk]
+            
+            data = {
+                "text": clean_chunk,
+                "target_lang": "TR"
+            }
+            
+            try:
+                response = requests.post(url, headers=headers, json=data)
+                response.raise_for_status()
+                res_data = response.json()
+                
+                for item in res_data.get("translations", []):
+                    translated_texts.append(item["text"])
+                    
+                completed += 1
+                if progress_callback:
+                    prog_val = int((completed / len(chunks)) * 100)
+                    progress_callback(prog_val, f"DeepL Cevriliyor... ({completed}/{len(chunks)} paket)")
+                    
+            except Exception as e:
+                err_msg = str(e)
+                if response is not None:
+                    try:
+                        err_msg += f" - {response.json()}"
+                    except:
+                        pass
+                logger.error(f"DeepL API failed: {err_msg}")
+                raise TranslationError(f"DeepL translation failed: {err_msg}")
+                
+        # Map back
+        for idx, trans in zip(valid_indices, translated_texts):
+            if trans:
+                subs[idx].text = trans
+                
+        subs.save(output_sub_path)
+        logger.debug(f"Translated subtitle saved to: {output_sub_path}")
+        return
+

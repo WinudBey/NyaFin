@@ -4,3 +4,4 @@ logs/app.log
 __pycache__/
 logs/app.log
 ai.md
+.env
