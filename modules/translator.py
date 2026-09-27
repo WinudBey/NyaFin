@@ -5,11 +5,12 @@ import translators as ts
 from core.logger import get_logger
 from core.config import Config
 from core.exceptions import TranslationError
+import concurrent.futures
 
 logger = get_logger(__name__)
 
 class Translator:
-    """Handles subtitle parsing and translation via Google Translate (fallback to Bing)."""
+    """Handles subtitle parsing and translation via multiple engines with concurrency."""
 
     def __init__(self):
         try:
@@ -21,7 +22,7 @@ class Translator:
 
     def translate_subtitle_file(self, input_sub_path: str, output_sub_path: str, progress_callback=None):
         """
-        Parses a subtitle file, translates dialog lines in batches, and saves to a new file.
+        Parses a subtitle file, translates dialog lines concurrently in batches using multiple engines.
         Preserves all timestamps and styling.
         
         Args:
@@ -44,88 +45,95 @@ class Translator:
                     valid_indices.append(i)
                     texts_to_translate.append(line.text)
                     
-            logger.info(f"Translating {len(texts_to_translate)} lines in batches...")
+            logger.info(f"Translating {len(texts_to_translate)} lines concurrently in batches...")
             
-            chunk_size = 10  # Daha küçük chunk boyutu Bing'in satırları yutma ihtimalini azaltır
-            translated_texts = []
+            chunk_size = 10
+            chunks = [texts_to_translate[i:i+chunk_size] for i in range(0, len(texts_to_translate), chunk_size)]
+            translated_results = [None] * len(chunks)
             
-            for i in range(0, len(texts_to_translate), chunk_size):
+            primary_service = Config.TRANSLATOR_PRIMARY_SERVICE
+            engines = [primary_service]
+            for fallback in ['google', 'bing', 'yandex', 'alibaba']:
+                if fallback not in engines:
+                    engines.append(fallback)
+                    
+            def translate_chunk(chunk_idx, chunk_text_list):
                 if Config.STOP_EVENT.is_set():
-                    logger.warning("Translation cancelled by user.")
-                    raise TranslationError("Cancelled by user.")
+                    return None
                     
-                chunk = texts_to_translate[i:i+chunk_size]
-                current_chunk = (i // chunk_size) + 1
-                total_chunks = (len(texts_to_translate) + chunk_size - 1) // chunk_size
+                clean_chunk = [t.replace("\n", " ").replace(r"\N", " ") for t in chunk_text_list]
+                text_to_send = "\n\n".join(clean_chunk)
                 
-                if progress_callback:
-                    prog_val = int((current_chunk / total_chunks) * 100)
-                    progress_callback(prog_val, f"Bölüm {current_chunk}/{total_chunks} çevriliyor...")
-                    
-                logger.debug(f"Translating chunk {current_chunk}/{total_chunks}...")
+                # Start with a different engine based on chunk_idx to distribute load across threads
+                start_idx = chunk_idx % len(engines)
                 
-                clean_chunk = [t.replace("\n", " ").replace(r"\N", " ") for t in chunk]
-                text_to_send = "\n\n".join(clean_chunk)  # Paragrafları ayırmak için çift satır atlama kullanıyoruz
-                
-                primary_service = Config.TRANSLATOR_PRIMARY_SERVICE
-                
-                # Build engine try list based on primary service
-                engines = [primary_service]
-                for fallback in ['google', 'bing', 'yandex', 'alibaba']:
-                    if fallback not in engines:
-                        engines.append(fallback)
-                        
-                success = False
-                
-                for engine in engines:
+                for attempt in range(len(engines)):
                     if Config.STOP_EVENT.is_set():
-                        raise TranslationError("Cancelled by user.")
-                    
-                    logger.debug(f"Attempting translation with {engine}...")
-                    retries = 2
-                    
-                    for attempt in range(retries):
-                        if Config.STOP_EVENT.is_set():
-                            raise TranslationError("Cancelled by user.")
-                        try:
-                            res = ts.translate_text(text_to_send, translator=engine, from_language='en', to_language='tr')
-                            res_lines = res.split("\n")
-                            
-                            # Clean up empty lines from response
-                            res_lines = [line.strip() for line in res_lines if line.strip()]
-                            
-                            if len(res_lines) == len(chunk):
-                                translated_texts.extend(res_lines)
-                                success = True
-                                time.sleep(1.5)  # Pause to respect rate limits globally
-                                break
-                            else:
-                                logger.warning(f"[{engine}] Chunk length mismatch on attempt {attempt+1}! Expected {len(chunk)}, got {len(res_lines)}.")
-                                time.sleep(2.0)
-                        except Exception as e:
-                            logger.warning(f"[{engine}] API failed on attempt {attempt + 1}: {e}")
-                            time.sleep(2.0 * (attempt + 1))
-                            
-                    if success:
-                        break
+                        return None
                         
-                if not success:
-                    logger.warning("All engines failed batch translation or length mismatch. Falling back to line-by-line with Google...")
-                    # Fallback to line by line with delay
-                    for text in clean_chunk:
-                        if Config.STOP_EVENT.is_set():
-                            raise TranslationError("Cancelled by user.")
+                    engine = engines[(start_idx + attempt) % len(engines)]
+                    
+                    try:
+                        res = ts.translate_text(text_to_send, translator=engine, from_language='en', to_language='tr')
+                        res_lines = [line.strip() for line in res.split("\n") if line.strip()]
+                        
+                        if len(res_lines) == len(chunk_text_list):
+                            time.sleep(0.3) # Tiny delay to prevent spamming
+                            return res_lines
+                        else:
+                            logger.debug(f"[{engine}] Mismatch in chunk {chunk_idx}. Expected {len(chunk_text_list)}, got {len(res_lines)}.")
+                    except Exception as e:
+                        logger.debug(f"[{engine}] API error in chunk {chunk_idx}: {e}")
+                
+                # If all batch engines fail, fallback to single line translation
+                logger.warning(f"Chunk {chunk_idx} batch failed entirely. Using line-by-line fallback.")
+                fallback_lines = []
+                for text in clean_chunk:
+                    if Config.STOP_EVENT.is_set():
+                        return None
+                    try:
+                        single_res = ts.translate_text(text, translator='google', from_language='en', to_language='tr')
+                        fallback_lines.append(single_res)
+                        time.sleep(0.5)
+                    except Exception:
                         try:
-                            # 1 req/sec max to avoid Google limits
-                            single_res = ts.translate_text(text, translator='google', from_language='en', to_language='tr')
-                            translated_texts.append(single_res)
-                            time.sleep(1.1)
-                        except Exception as e:
-                            logger.error(f"Line-by-line translation failed: {e}")
-                            translated_texts.append(text) # Keep original if all else fails
-                    success = True
+                            single_res = ts.translate_text(text, translator='bing', from_language='en', to_language='tr')
+                            fallback_lines.append(single_res)
+                            time.sleep(0.5)
+                        except Exception:
+                            fallback_lines.append(text)
+                return fallback_lines
+
+            completed = 0
             
-            # Map translated lines back to the subtitle objects
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                futures = {executor.submit(translate_chunk, i, chunk): i for i, chunk in enumerate(chunks)}
+                
+                for future in concurrent.futures.as_completed(futures):
+                    if Config.STOP_EVENT.is_set():
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        raise TranslationError("Cancelled by user.")
+                        
+                    idx = futures[future]
+                    res = future.result()
+                    
+                    if res is None and Config.STOP_EVENT.is_set():
+                        raise TranslationError("Cancelled by user.")
+                        
+                    translated_results[idx] = res
+                    completed += 1
+                    
+                    if progress_callback:
+                        prog_val = int((completed / len(chunks)) * 100)
+                        progress_callback(prog_val, f"Cevriliyor... ({completed}/{len(chunks)} paket)")
+
+            # Flatten results
+            translated_texts = []
+            for res_list in translated_results:
+                if res_list:
+                    translated_texts.extend(res_list)
+            
+            # Map translated lines back
             for idx, trans in zip(valid_indices, translated_texts):
                 if trans:
                     subs[idx].text = trans
@@ -136,4 +144,3 @@ class Translator:
         except Exception as e:
             logger.error(f"Error processing subtitle file: {e}")
             raise TranslationError(f"Failed to process subtitle file: {e}")
-
